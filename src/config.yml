@@ -17,9 +17,10 @@ config_files:
   box: ../creds/BoxApp.json
 Redcap:
   api_url: https://redcap.wustl.edu/redcap/srvrs/prod_v3_1_0_001/redcap/api/
-  tables:
+  behavioral:
     hcpa:
-      events: visit_1_arm_1
+      events:
+        - visit_1_arm_1
       fields:
         dobvar: dob
         field: subject_id
@@ -27,7 +28,8 @@ Redcap:
         sexatbirth: gender
         sitenum: site
     hcpd18:
-      events: visit_arm_1
+      events:
+        - visit_1_arm_1
       fields:
         dobvar: dob
         field: subject_id
@@ -35,7 +37,8 @@ Redcap:
         sexatbirth: gender
         sitenum: site
     hcpdchild:
-      events: visit_1_arm_1
+      events:
+        - visit_1_arm_1
       fields:
         dobvar: dob
         field: subject_id
@@ -43,7 +46,8 @@ Redcap:
         sexatbirth: gender
         sitenum: site
     hcpdparent:
-      events: visit_1_arm_1
+      events:
+        - visit_1_arm_1
       fields:
         dobvar: dob
         field: parent_id

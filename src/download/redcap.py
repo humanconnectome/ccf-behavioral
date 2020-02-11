@@ -6,14 +6,14 @@ import requests
 from config import LoadSettings
 
 config = LoadSettings()['Redcap']
-red = config['tables']
+red = config['behavioral']
 
 default_url = config['api_url']
 
 
 class RedcapTable:
-    def __init__(self, url, token):
-        self.url = url
+    def __init__(self, token, url = None):
+        self.url = url if url else default_url
         self.token = token
 
     @staticmethod
@@ -22,7 +22,7 @@ class RedcapTable:
             raise Exception(name + ' is not available.')
 
         ds = config['datasources'][name]
-        return RedcapTable(ds['url'], ds['token'])
+        return RedcapTable(ds['token'], ds['url'])
 
     def post(self, payload):
         data = payload.copy()
@@ -30,7 +30,7 @@ class RedcapTable:
         r = requests.post(self.url, data)
         return r
 
-    def get_frame(self, fields=[], events=[], forms=[]):
+    def get_frame(self, fields=None, events=None, forms=None):
         data = {
             'format': 'csv',
             'content': 'record',
@@ -91,7 +91,7 @@ class Redcap:
     def table(self, token):
         return RedcapTable(self.url, token)
 
-    def get(self, token, fields=[], events=[], forms=[],
+    def get(self, token, fields=None, events=None, forms=None,
             format='csv',
             content='record',
             type='flat',
@@ -126,7 +126,7 @@ class Redcap:
         r = io.BytesIO(r.content)
         return pd.read_csv(r, encoding='utf8', parse_dates=True, low_memory=False)
 
-    def get_all_rows(self, study, fieldlist=[], subjectOnly=False):
+    def get_all_rows(self, study, fieldlist=None, subjectOnly=False):
         s = red[study]
         fieldnames = s['fields']
         token = s['token']
@@ -135,12 +135,16 @@ class Redcap:
             fields = [fieldnames['field']]
         else:
             fields = list(fieldnames.values())
-        fields.extend(fieldlist)
+        if fieldlist:
+            fields.extend(fieldlist)
 
         df = self.get(token, fields, events)
-        df.rename(columns={fieldnames['interview_date']: 'interview_date'}, inplace=True)
-        df = df[df[fieldnames['field']] != '']
-        split_df = df[fieldnames['field']].str.split("_", 1, expand=True)
+        df.rename(columns={
+            fieldnames['interview_date']: 'interview_date',
+            fieldnames['field']: 'subjectid'
+        }, inplace=True)
+        df = df[df.subjectid.notna() & (df.subjectid != '')]
+        split_df = df.subjectid.str.split("_", 1, expand=True)
         df['subject'] = split_df[0].str.strip()
         df['flagged'] = split_df[1].str.strip()
         df['study'] = study
@@ -211,11 +215,14 @@ class Redcap:
         flagged contains the extra characters other than the id so you can keep track of who should NOT be uploaded to NDA
          or elsewwhere shared
         """
+        fields_dict = set(red.keys())
+        return pd.concat([self.get_all_rows(name, subjectOnly=True) for name in fields_dict], sort=True)
+
         studyids = pd.DataFrame()
 
         for name in red.keys():
             df = self.get_all_rows(name, subjectOnly=True)
-            df.columns = ['subject_id', 'subject', 'flagged', 'study']
+            # df.columns = ['subjectid', 'subject', 'flagged', 'study']
             studyids = studyids.append(df)
 
         return studyids
