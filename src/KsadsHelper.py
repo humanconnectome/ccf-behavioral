@@ -2,11 +2,11 @@ from config import LoadSettings
 import os
 import pandas as pd
 import PandasHelper as h
-from download.redcap import Redcap
+from download.redcap import RedcapTable
 
 
 class KSADS:
-    def __init__(self):
+    def __init__(self, redcap = None):
         config = LoadSettings()
         self.downloads_dir = config['KSADS']['download_dir']
         self.dates = sorted(os.listdir(self.downloads_dir))
@@ -14,13 +14,11 @@ class KSADS:
         self.olddate = self.dates[-2]
         self.newdate = self.dates[-1]
 
-        redK = config['Redcap']['datasources']['ksads']
-        self.token = redK['token']
-        self.redcap = Redcap(redK['url'])
+        self.redcap = RedcapTable.get_table_by_name('ksads')
 
     def read_redcap(self, form, added=None):
         form_complete = '%s_complete' % form
-        redcap_df = self.redcap.get(self.token, forms=['common', form])
+        redcap_df = self.redcap.get_frame(forms=['common', form])
         redcap_df = redcap_df[redcap_df[form_complete] == 1]
         if added is not None and not added.empty:
             redcap_df = redcap_df.append(added, sort=False)
