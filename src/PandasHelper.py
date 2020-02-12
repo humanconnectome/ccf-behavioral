@@ -5,12 +5,15 @@ import numpy
 
 MIN_FLOAT = numpy.finfo(numpy.float64).min
 
-
-def __in_common_helper__(data, column_names, column_names2):
-    if isinstance(data, Series):
-        return data.to_frame()
-    elif not isinstance(data, DataFrame):
+def __as_dataframe__(pandas_item):
+    if isinstance(pandas_item, Series):
+        return pandas_item.to_frame()
+    elif not isinstance(pandas_item, DataFrame):
         raise TypeError('Expecting either a Series or DataFrame')
+    return pandas_item
+
+def __column_name_parameters_helper__(data, column_names=None, column_names2=None):
+    data = __as_dataframe__(data)
 
     column_names = column_names or column_names2
 
@@ -27,9 +30,9 @@ def __in_common_helper__(data, column_names, column_names2):
         return data.copy()
 
 
-def in_common(left, right, on=None, left_columns=None, right_columns=None):
-    left_df = __in_common_helper__(left, left_columns, on)
-    right_df = __in_common_helper__(right, right_columns, on)
+def __keep_columns_in_common__(left, right, on=None, left_columns=None, right_columns=None):
+    left_df = __column_name_parameters_helper__(left, left_columns, on)
+    right_df = __column_name_parameters_helper__(right, right_columns, on)
 
     common_columns = left_df.columns.intersection(right_df.columns)
     left_df = left_df[common_columns].fillna(MIN_FLOAT)
@@ -38,15 +41,17 @@ def in_common(left, right, on=None, left_columns=None, right_columns=None):
     return left_df, right_df
 
 
-def unequal_columns(left, right, on=None, left_columns=None, right_columns=None):
-    left_df = __in_common_helper__(left, left_columns, on)
-    right_df = __in_common_helper__(right, right_columns, on)
+def __keep_columns_by_position__(left, right, on=None, left_columns=None, right_columns=None):
+    left_df = __column_name_parameters_helper__(left, left_columns, on)
+    right_df = __column_name_parameters_helper__(right, right_columns, on)
     n = min(len(left_df.columns), len(right_df.columns))
-    left_df = left_df.iloc[:,:n].fillna(MIN_FLOAT)
-    right_df = right_df.iloc[:,:n].fillna(MIN_FLOAT)
+    left_df = left_df.iloc[:, :n].fillna(MIN_FLOAT)
+    right_df = right_df.iloc[:, :n].fillna(MIN_FLOAT)
 
     return left_df, right_df
 
+def __keep_columns__(left, right, on=None, left_columns=None, right_columns=None, equal_names=True):
+    return (__keep_columns_in_common__ if equal_names else __keep_columns_by_position__)(left, right, on, left_columns, right_columns)
 
 def difference(left, right, on=None, left_columns=None, right_columns=None, equal_names=True):
     """
@@ -66,10 +71,7 @@ def difference(left, right, on=None, left_columns=None, right_columns=None, equa
 
     """
 
-    if equal_names:
-        left_data, right_data = in_common(left, right, on, left_columns, right_columns)
-    else:
-        left_data, right_data = unequal_columns(left, right, on, left_columns, right_columns)
+    left_data, right_data = __keep_columns__(left, right, on, left_columns, right_columns, equal_names)
 
     a = set(map(tuple, left_data.values))
     b = set(map(tuple, right_data.values))
@@ -79,7 +81,7 @@ def difference(left, right, on=None, left_columns=None, right_columns=None, equa
     return left[bool_series] if isinstance(left, DataFrame) else bool_series
 
 
-def intersection(left, right, on=None, left_columns=None, right_columns=None):
+def intersection(left, right, on=None, left_columns=None, right_columns=None, equal_names = True):
     """
     intersection Finds the set intersection from left to right DataFrames and returns either a DataFrame or a boolean Series
 
@@ -89,13 +91,14 @@ def intersection(left, right, on=None, left_columns=None, right_columns=None):
         on (str|int|Iterable): Column(s) from both datasets to use for operation
         left_columns (str|int|Iterable): Column(s) from left dataset to use for operation
         right_columns (str|int|Iterable): Column(s) from right dataset to use for operation
+        equal_names (bool): Should it automatically try to match intersecting columns, or take the columns in order given as is.
 
     Returns:
         Series: A boolean of the left dataset indicating also in right dataset
         DataFrame: The rows resulting from the operation
 
     """
-    left_data, right_data = in_common(left, right, on, left_columns, right_columns)
+    left_data, right_data = __keep_columns__(left, right, on, left_columns, right_columns, equal_names)
 
     a = set(map(tuple, left_data.values))
     b = set(map(tuple, right_data.values))
@@ -103,12 +106,12 @@ def intersection(left, right, on=None, left_columns=None, right_columns=None):
     return left[bool_series] if isinstance(left, DataFrame) else bool_series
 
 
-def intersection_both(left, right, on=None, left_columns=None, right_columns=None,
+def intersection_both(left, right, on=None, left_columns=None, right_columns=None, equal_names=True,
                       sources=None, sources_column='sources', drop_duplicates=True):
     if not isinstance(left, DataFrame) or not isinstance(right, DataFrame):
         raise TypeError("Expecting two dataframes.")
 
-    left_data, right_data = in_common(left, right, on, left_columns, right_columns)
+    left_data, right_data = __keep_columns__(left, right, on, left_columns, right_columns, equal_names)
 
     a = set(map(tuple, left_data.values))
     b = set(map(tuple, right_data.values))
