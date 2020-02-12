@@ -1,9 +1,7 @@
 from IPython.core.display import display, HTML
 from collections.abc import Iterable
 from pandas import DataFrame, Series
-import numpy
 
-MIN_FLOAT = numpy.finfo(numpy.float64).min
 
 def __as_dataframe__(pandas_item):
     if isinstance(pandas_item, Series):
@@ -11,6 +9,7 @@ def __as_dataframe__(pandas_item):
     elif not isinstance(pandas_item, DataFrame):
         raise TypeError('Expecting either a Series or DataFrame')
     return pandas_item
+
 
 def __column_name_parameters_helper__(data, column_names=None, column_names2=None):
     data = __as_dataframe__(data)
@@ -30,108 +29,69 @@ def __column_name_parameters_helper__(data, column_names=None, column_names2=Non
         return data.copy()
 
 
-def __keep_columns_in_common__(left, right, on=None, left_columns=None, right_columns=None):
-    left_df = __column_name_parameters_helper__(left, left_columns, on)
-    right_df = __column_name_parameters_helper__(right, right_columns, on)
-
-    common_columns = left_df.columns.intersection(right_df.columns)
-    left_df = left_df[common_columns].fillna(MIN_FLOAT)
-    right_df = right_df[common_columns].fillna(MIN_FLOAT)
-
-    return left_df, right_df
+def __diff__(df1, df2, indicator='_merge'):
+    result = df1.merge(df2, how='left', indicator=indicator)
+    return result[result[indicator] == 'left_only']
 
 
-def __keep_columns_by_position__(left, right, on=None, left_columns=None, right_columns=None):
-    left_df = __column_name_parameters_helper__(left, left_columns, on)
-    right_df = __column_name_parameters_helper__(right, right_columns, on)
-    n = min(len(left_df.columns), len(right_df.columns))
-    left_df = left_df.iloc[:, :n].fillna(MIN_FLOAT)
-    right_df = right_df.iloc[:, :n].fillna(MIN_FLOAT)
-
-    return left_df, right_df
-
-def __keep_columns__(left, right, on=None, left_columns=None, right_columns=None, equal_names=True):
-    return (__keep_columns_in_common__ if equal_names else __keep_columns_by_position__)(left, right, on, left_columns, right_columns)
-
-def difference(left, right, on=None, left_columns=None, right_columns=None, equal_names=True):
-    """
-    difference Finds the set difference from left to right DataFrames and returns either a DataFrame or a boolean Series
-
-    Args:
-        left (DataFrame|Series): Left dataset
-        right (DataFrame|Series): Right dataset
-        on (str|int|Iterable): Column(s) from both datasets to use for operation
-        left_columns (str|int|Iterable): Column(s) from left dataset to use for operation
-        right_columns (str|int|Iterable): Column(s) from right dataset to use for operation
-        equal_names (bool): Should it automatically try to match intersecting columns, or take the columns in order given as is.
-
-    Returns:
-        Series: A boolean of the left dataset indicating also in right dataset
-        DataFrame: The rows resulting from the operation
-
-    """
-
-    left_data, right_data = __keep_columns__(left, right, on, left_columns, right_columns, equal_names)
-
-    a = set(map(tuple, left_data.values))
-    b = set(map(tuple, right_data.values))
-    differences = a - b
-
-    bool_series = left_data.apply(tuple, axis=1).isin(differences)
-    return left[bool_series] if isinstance(left, DataFrame) else bool_series
+def __intersection__(df1, df2, indicator='_merge'):
+    return df1.merge(df2, how='inner', indicator=indicator)
 
 
-def intersection(left, right, on=None, left_columns=None, right_columns=None, equal_names = True):
-    """
-    intersection Finds the set intersection from left to right DataFrames and returns either a DataFrame or a boolean Series
-
-    Args:
-        left (DataFrame|Series): Left dataset
-        right (DataFrame|Series): Right dataset
-        on (str|int|Iterable): Column(s) from both datasets to use for operation
-        left_columns (str|int|Iterable): Column(s) from left dataset to use for operation
-        right_columns (str|int|Iterable): Column(s) from right dataset to use for operation
-        equal_names (bool): Should it automatically try to match intersecting columns, or take the columns in order given as is.
-
-    Returns:
-        Series: A boolean of the left dataset indicating also in right dataset
-        DataFrame: The rows resulting from the operation
-
-    """
-    left_data, right_data = __keep_columns__(left, right, on, left_columns, right_columns, equal_names)
-
-    a = set(map(tuple, left_data.values))
-    b = set(map(tuple, right_data.values))
-    bool_series = left_data.apply(tuple, axis=1).isin(a.intersection(b))
-    return left[bool_series] if isinstance(left, DataFrame) else bool_series
+def __symmetric_diff__(df1, df2, indicator='_merge'):
+    result = df1.merge(df2, how='outer', indicator=indicator)
+    return result[result[indicator] != 'both']
 
 
-def intersection_both(left, right, on=None, left_columns=None, right_columns=None, equal_names=True,
-                      sources=None, sources_column='sources', drop_duplicates=True):
-    if not isinstance(left, DataFrame) or not isinstance(right, DataFrame):
-        raise TypeError("Expecting two dataframes.")
+def __reelongate__(filter_func, df1, df2, on=None, left_on=None, right_on=None, equal_names=True, indicator='_merge',
+                   sources=None,
+                   drop_duplicates=True):
+    df1, df2 = __as_dataframe__(df1), __as_dataframe__(df2)
 
-    left_data, right_data = __keep_columns__(left, right, on, left_columns, right_columns, equal_names)
-
-    a = set(map(tuple, left_data.values))
-    b = set(map(tuple, right_data.values))
-    intersection = a.intersection(b)
-    left_df = left[left_data.apply(tuple, axis=1).isin(intersection)].copy()
-    right_df = right[right_data.apply(tuple, axis=1).isin(intersection)].copy()
-
-    if sources:
-        if sources is True:
-            sources = ['left', 'right']
-        left_df[sources_column] = sources[0]
-        right_df[sources_column] = sources[1]
-
-        neg = left_df.columns[left_df.columns != sources_column]
+    a = __column_name_parameters_helper__(df1, left_on, on)
+    b = __column_name_parameters_helper__(df2, right_on, on)
+    if equal_names:
+        columns_in_common = a.columns.intersection(b.columns)
+        a = a[columns_in_common]
+        b = b[columns_in_common]
     else:
-        neg = left_df.columns
+        minimum = min(len(a.columns), len(b.columns))
+        a = a.iloc[:, :minimum]
+        b = b.iloc[:, :minimum]
+        b.columns = a.columns
 
-    result = left_df.append(right_df, sort=False).sort_values(left_data.columns.to_list())
+    filter = filter_func(a, b, indicator)
 
-    return result.drop_duplicates(neg, keep=False) if drop_duplicates else result
+    a = df1.merge(filter[filter[indicator] != 'right_only'], 'right')
+    b = df2.merge(filter[filter[indicator] != 'left_only'], 'right')
+    a[indicator], b[indicator] = sources if sources else ('left', 'right')
+
+    result = a.append(b, sort=False)
+
+    if drop_duplicates:
+        result.drop_duplicates(subset=result.columns[:-1], keep=False, inplace=True)
+
+    if not indicator:
+        result = result.iloc[:, :-1]
+
+    return result
+
+
+def diff(df1, df2, on=None, left_on=None, right_on=None, equal_names=True, indicator=False, sources=None,
+         drop_duplicates=True):
+    return __reelongate__(__diff__, df1, df2, on, left_on, right_on, equal_names, indicator, sources, drop_duplicates)
+
+
+def intersection(df1, df2, on=None, left_on=None, right_on=None, equal_names=True, indicator='_merge', sources=None,
+                 drop_duplicates=True):
+    return __reelongate__(__intersection__, df1, df2, on, left_on, right_on, equal_names, indicator, sources,
+                          drop_duplicates)
+
+
+def symmetric_diff(df1, df2, on=None, left_on=None, right_on=None, equal_names=True, indicator='_merge', sources=None,
+                   drop_duplicates=True):
+    return __reelongate__(__symmetric_diff__, df1, df2, on, left_on, right_on, equal_names, indicator, sources,
+                          drop_duplicates)
 
 
 def showbox(message, heading=None, type='success'):
