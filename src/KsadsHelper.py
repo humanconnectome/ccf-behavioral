@@ -24,6 +24,12 @@ class KSADS:
             redcap_df = redcap_df.append(added, sort=False)
         return redcap_df
 
+    def read_csv(self, form):
+        old = pd.read_csv(os.path.join(self.downloads_dir, self.olddate, form + '.csv'), low_memory=False)
+        new = pd.read_csv(os.path.join(self.downloads_dir, self.newdate, form + '.csv'), low_memory=False)
+
+        return old, new
+
     def read_data(self, form):
         old = pd.read_csv(os.path.join(self.downloads_dir, self.olddate, form + '.csv'), low_memory=False)
         new = pd.read_csv(os.path.join(self.downloads_dir, self.newdate, form + '.csv'), low_memory=False)
