@@ -5,3 +5,6 @@ secrets.yml
 .pytest_cache/
 cache/
 __pycache__/
+tmp/
+*.pkl
+*.csv
