@@ -45,7 +45,7 @@ def __symmetric_diff__(df1, df2, indicator='_merge'):
 
 def __reelongate__(filter_func, df1, df2, on=None, left_on=None, right_on=None, equal_names=True, indicator='_merge',
                    sources=None,
-                   drop_duplicates=True):
+                   drop_duplicates=True, drop_indicator=False):
     df1, df2 = __as_dataframe__(df1), __as_dataframe__(df2)
 
     a = __column_name_parameters_helper__(df1, left_on, on)
@@ -66,20 +66,20 @@ def __reelongate__(filter_func, df1, df2, on=None, left_on=None, right_on=None, 
     b = df2.merge(filter[filter[indicator] != 'left_only'], 'right')
     a[indicator], b[indicator] = sources if sources else ('left', 'right')
 
-    result = a.append(b, sort=False)
+    result = a.append(b, sort=False).sort_values(filter.columns.to_list())
 
     if drop_duplicates:
         result.drop_duplicates(subset=result.columns[:-1], keep=False, inplace=True)
 
-    if not indicator:
+    if drop_indicator:
         result = result.iloc[:, :-1]
 
     return result
 
 
-def diff(df1, df2, on=None, left_on=None, right_on=None, equal_names=True, indicator=False, sources=None,
-         drop_duplicates=True):
-    return __reelongate__(__diff__, df1, df2, on, left_on, right_on, equal_names, indicator, sources, drop_duplicates)
+def diff(df1, df2, on=None, left_on=None, right_on=None, equal_names=True, indicator='_merge', sources=None,
+         drop_duplicates=True, drop_indicator=True):
+    return __reelongate__(__diff__, df1, df2, on, left_on, right_on, equal_names, indicator, sources, drop_duplicates, drop_indicator)
 
 
 def intersection(df1, df2, on=None, left_on=None, right_on=None, equal_names=True, indicator='_merge', sources=None,
@@ -93,6 +93,14 @@ def symmetric_diff(df1, df2, on=None, left_on=None, right_on=None, equal_names=T
     return __reelongate__(__symmetric_diff__, df1, df2, on, left_on, right_on, equal_names, indicator, sources,
                           drop_duplicates)
 
+def series_is_equal(series):
+    return series.duplicated(keep=False).all()
+
+def unequal_columns(df):
+    """ Find the name of the columns that are unequal
+    """
+    unequal = [colname for colname, value in df.iteritems() if not series_is_equal(value)]
+    return unequal
 
 def showbox(message, heading=None, type='success'):
     box = '<div class="alert alert-%s" role="alert">' % type
