@@ -54,16 +54,22 @@ def __reelongate__(filter_func, df1, df2, on=None, left_on=None, right_on=None, 
         columns_in_common = a.columns.intersection(b.columns)
         a = a[columns_in_common]
         b = b[columns_in_common]
+        filter = filter_func(a, b, indicator)
+
+        a = df1.merge(filter[filter[indicator] != 'right_only'], 'right')
+        b = df2.merge(filter[filter[indicator] != 'left_only'], 'right')
     else:
         minimum = min(len(a.columns), len(b.columns))
         a = a.iloc[:, :minimum]
         b = b.iloc[:, :minimum]
+        old_b_cols_map = dict(zip(a.columns, b.columns))
         b.columns = a.columns
+        filter = filter_func(a, b, indicator)
 
-    filter = filter_func(a, b, indicator)
+        a = df1.merge(filter[filter[indicator] != 'right_only'], 'right')
+        filter = filter.rename(columns=old_b_cols_map)
+        b = df2.merge(filter[filter[indicator] != 'left_only'], 'right')
 
-    a = df1.merge(filter[filter[indicator] != 'right_only'], 'right')
-    b = df2.merge(filter[filter[indicator] != 'left_only'], 'right')
     a[indicator], b[indicator] = sources if sources else ('left', 'right')
 
     result = a.append(b, sort=False).sort_values(filter.columns.to_list())
