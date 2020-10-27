@@ -8,7 +8,7 @@ boxsdk[jwt]==2.3.2
 certifi==2018.11.29
 cffi==1.11.5
 chardet==3.0.4
-cryptography==2.5
+cryptography==3.2
 docutils==0.14
 et-xmlfile==1.0.1
 idna==2.8
